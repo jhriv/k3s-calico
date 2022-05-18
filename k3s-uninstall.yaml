@@ -1,0 +1,9 @@
+---
+
+- name: Remove k3s
+  hosts: all
+
+  tasks:
+  - name: Remove k3s using helper script
+    command:
+      cmd: /usr/local/bin/k3s-uninstall.sh

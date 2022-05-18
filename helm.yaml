@@ -1,0 +1,11 @@
+---
+- name: Install Helm
+  hosts: all
+
+  tasks:
+  - name: Install helm from helper script
+    shell:
+      cmd: >
+        curl https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 
+        | bash
+      creates: /usr/local/bin/helm

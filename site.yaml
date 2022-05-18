@@ -1,0 +1,6 @@
+---
+
+- import_playbook: mysql.yaml
+- import_playbook: k3s.yaml
+- import_playbook: helm.yaml
+- import_playbook: rancher.yaml

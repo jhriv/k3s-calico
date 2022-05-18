@@ -1,0 +1,25 @@
+---
+
+- name: Install MySQL
+  hosts: all
+
+  tasks:
+  - name: Install MariaDB
+    package:
+      name: [ 'mariadb-server', 'python3-PyMySQL' ]
+      state: present
+    become: true
+
+  - name: Start MariaDB
+    service:
+      name: mariadb
+      state: started
+      enabled: true
+    become: true
+
+  - name: Create k3s database
+    mysql_db:
+      name: k3s
+      state: present
+    become: true
+
