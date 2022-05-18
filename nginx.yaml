@@ -3,36 +3,34 @@
 - name: Deploy nginx pod
   hosts: all
 
-
   pre_tasks:
-  - name: Install pip
-    package:
-      name: python3-pip
-      state: present
-    become: true
-  
-  - name: Install OpenShift Python module
-    pip:
-      name:
-        - openshift
-      extra_args: --user
+    - name: Install pip
+      package:
+        name: python3-pip
+        state: present
+      become: true
+
+    - name: Install OpenShift Python module
+      pip:
+        name:
+          - openshift
+        extra_args: --user
 
   tasks:
 
-  - name: Deploy nginx pod via inline definition
-    k8s:
-      state: present
-      kubeconfig: '/etc/rancher/k3s/k3s.yaml'
-      definition:
-        apiVersion: v1
-        kind: Pod
-        metadata:
-          name: nginx
-          namespace: default
-        spec:
-          containers:
-          - name: nginx
-            image: nginx:1.14.2
-            ports:
-            - containerPort: 80
-
+    - name: Deploy nginx pod via inline definition
+      k8s:
+        state: present
+        kubeconfig: '/etc/rancher/k3s/k3s.yaml'
+        definition:
+          apiVersion: v1
+          kind: Pod
+          metadata:
+            name: nginx
+            namespace: default
+          spec:
+            containers:
+              - name: nginx
+                image: nginx:1.14.2
+                ports:
+                  - containerPort: '80'

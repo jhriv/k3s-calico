@@ -7,7 +7,7 @@
   - name: Install k3s via helper script
     shell:
       cmd: >
-        curl -sfL https://get.k3s.io 
+        curl -sfL https://get.k3s.io
         | sh -s -
         server
         --datastore-endpoint="mysql://root:@tcp(localhost:3306)/k3s"
@@ -22,20 +22,20 @@
 
   - name: Install Calico
     command:
-      cmd: > 
-        kubectl create 
+      cmd: >
+        kubectl create
         -f https://projectcalico.docs.tigera.io/manifests/tigera-operator.yaml
     register: calico_install_out
     failed_when:
-    - calico_install_out.rc != 0
-    - calico_install_out.stderr is not search('namespaces "tigera-operator" already exists')
+      - calico_install_out.rc != 0
+      - calico_install_out.stderr is not search('namespaces "tigera-operator" already exists')
     changed_when:
-    - calico_install_out.stdout is search('deployment.apps/tigera-operator created')
+      - calico_install_out.stdout is search('deployment.apps/tigera-operator created')
 
   - name: Create Calico Resources
     command:
       cmd: >
-        kubectl create 
+        kubectl create
         -f https://projectcalico.docs.tigera.io/manifests/custom-resources.yaml
     register: calico_resources_out
     failed_when:

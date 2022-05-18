@@ -6,7 +6,9 @@
   tasks:
   - name: Install MariaDB
     package:
-      name: [ 'mariadb-server', 'python3-PyMySQL' ]
+      name:
+        - 'mariadb-server'
+        - 'python3-PyMySQL'
       state: present
     become: true
 
@@ -22,4 +24,3 @@
       name: k3s
       state: present
     become: true
-

@@ -7,3 +7,4 @@
   - name: Remove k3s using helper script
     command:
       cmd: /usr/local/bin/k3s-uninstall.sh
+      removes: /usr/local/bin/k3s-uninstall.sh
