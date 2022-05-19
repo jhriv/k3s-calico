@@ -1,70 +1,201 @@
 # -*- mode: ruby -*-
 # vi: set ft=ruby :
 
-# All Vagrant configuration is done below. The "2" in Vagrant.configure
-# configures the configuration version (we support older styles for
-# backwards compatibility). Please don't change it unless you know what
-# you're doing.
-Vagrant.configure("2") do |config|
-  # The most common configuration options are documented and commented below.
-  # For a complete reference, please see the online documentation at
-  # https://docs.vagrantup.com.
+# Reasonable Defaults - can be overridden with environmental variables
+_IP_NETWORK=ENV.fetch('IP_NETWORK','192.168.56')
+_DEFAULT_BOX=ENV.fetch('DEFAULT_BOX', 'ubuntu/focal64')
+_DEFAULT_PROVIDER=ENV.fetch('VAGRANT_DEFAULT_PROVIDER', 'virtualbox')
 
-  # Every Vagrant development environment requires a box. You can search for
-  # boxes at https://vagrantcloud.com/search.
-  config.vm.box = "centos/stream8"
+# List guests in separate file
+require_relative 'GUESTS';
 
-  # Disable automatic box update checking. If you disable this, then
-  # boxes will only be checked for updates when the user runs
-  # `vagrant box outdated`. This is not recommended.
-  # config.vm.box_check_update = false
+Vagrant.configure(2) do |config|
 
-  # Create a forwarded port mapping which allows access to a specific port
-  # within the machine from a port on the host machine. In the example below,
-  # accessing "localhost:8080" will access port 80 on the guest machine.
-  # NOTE: This will enable public access to the opened port
-  # config.vm.network "forwarded_port", guest: 80, host: 8080
+  # Provider
+  if defined?(PROVIDER)
+    config.vm.provider PROVIDER
+  else
+    config.vm.provider _DEFAULT_PROVIDER
+  end
 
-  # Create a forwarded port mapping which allows access to a specific port
-  # within the machine from a port on the host machine and only allow access
-  # via 127.0.0.1 to disable public access
-  # config.vm.network "forwarded_port", guest: 80, host: 8080, host_ip: "127.0.0.1"
+  GUESTS.each_with_index do |guest, i|
+    config.vm.define "#{guest[:name]}", primary: i==0 do |box|
+      box.vm.box_check_update = false
 
-  # Create a private network, which allows host-only access to the machine
-  # using a specific IP.
-  # config.vm.network "private_network", ip: "192.168.33.10"
+      # :box Define OS
+      box.vm.box = ( guest.key?(:box) ? guest[:box] : _DEFAULT_BOX )
 
-  # Create a public network, which generally matched to bridged network.
-  # Bridged networks make the machine appear as another physical device on
-  # your network.
-  # config.vm.network "public_network"
+      # Fix alpine's idea of localhost
+      if /alpine/i =~ box.vm.box
+        box.vm.provision 'shell',
+          name: 'Fixing localhost entry',
+          inline: <<-'SCRIPT'
+            sed -i -E 's/^(127\.0\.0\.1|::1\s*)\t.*/\1\tlocalhost/' /etc/hosts
+          SCRIPT
+      end
 
-  # Share an additional folder to the guest VM. The first argument is
-  # the path on the host to the actual folder. The second argument is
-  # the path on the guest to mount the folder. And the optional third
-  # argument is a set of non-required options.
-  # config.vm.synced_folder "../data", "/vagrant_data"
+      # :ip IP
+      if guest.has_key?(:ip)
+        if guest[:ip] == 'dhcp'
+          box.vm.network 'private_network', type: guest[:ip]
+        else
+          box.vm.network 'private_network',
+            ip: guest[:ip].to_s.match('\.') ? guest[:ip] : "#{_IP_NETWORK}.#{guest[:ip].to_s}"
+        end
+      end
 
-  # Provider-specific configuration so you can fine-tune various
-  # backing providers for Vagrant. These expose provider-specific options.
-  # Example for VirtualBox:
-  #
-    config.vm.provider "virtualbox" do |vb|
-  #   # Display the VirtualBox GUI when booting the machine
-  #   vb.gui = true
-  #
-  #   # Customize the amount of memory on the VM:
-      vb.memory = "6348" # 6144+204
-    end
-  #
-  # View the documentation for the provider you are using for more
-  # information on available options.
+      # :needs_python Install python, if requested / assumed needed
+      if guest.has_key?(:needs_python) \
+          ? guest[:needs_python]
+          : /ubuntu|debian|alpine/i =~ box.vm.box
+        box.vm.provision 'shell',
+          name: 'Installing python',
+          inline: <<-'SCRIPT'
+            if command -v apt-get > /dev/null; then
+              export DEBIAN_FRONTEND=noninteractive
+              apt-get update  --quiet=2
+              apt-get install --quiet=2 --option=Dpkg::Use-Pty=0 --assume-yes python python-apt
+            elif command -v apk > /dev/null; then
+              apk --quiet --no-progress update
+              apk --quiet --no-progress add python3
+            fi
+          SCRIPT
+      end
 
-  # Enable provisioning with a shell script. Additional provisioners such as
-  # Ansible, Chef, Docker, Puppet and Salt are also available. Please see the
-  # documentation for more information about their specific syntax and use.
-  # config.vm.provision "shell", inline: <<-SHELL
-  #   apt-get update
-  #   apt-get install -y apache2
-  # SHELL
-end
+      # :ports Port forwarding
+      if guest.has_key?(:ports)
+        guest[:ports].each do |port|
+          if port.is_a? Integer
+            box.vm.network "forwarded_port", guest: port, host: port
+          else # elif port.is_a? Hash
+            box.vm.network "forwarded_port",
+              guest:        port[:guest],
+              auto_correct: port.has_key?(:auto_correct) ? port[:auto_correct] : true,
+              guest_ip:     port.has_key?(:guest_ip)     ? port[:guest_ip]     : nil,
+              host_ip:      port.has_key?(:host_ip)      ? port[:host_ip]      : nil,
+              host:         port.has_key?(:host)         ? port[:host]         : port[:guest],
+              id:           port.has_key?(:id)           ? port[:id]           : nil,
+              protocol:     port.has_key?(:protocol)     ? port[:protocol]     : nil
+          end
+        end
+      end
+
+      # :cpus/:gui:/:memory CPU / GUI / RAM
+      box.vm.provider "virtualbox" do |v|
+        v.cpus   = guest[:cpus]   if guest.has_key?(:cpus)
+        v.gui    = guest[:gui]    if guest.has_key?(:gui)
+        v.memory = guest[:memory] if guest.has_key?(:memory)
+      end
+      box.vm.provider "parallels" do |v|
+        v.cpus   = guest[:cpus]   if guest.has_key?(:cpus)
+        if guest.has_key?(:gui)
+          v.customize ["set", :id, "--startup-view", guest[:gui] ? "window" : "headless"]
+        end
+        v.memory = guest[:memory] if guest.has_key?(:memory)
+      end
+      box.vm.provider "vmware_fusion" do |v|
+        v.vmx["numvcpus"] = guest[:cpus]   if guest.has_key?(:cpus)
+        v.gui             = guest[:gui]    if guest.has_key?(:gui)
+        v.vmx["memsize"]  = guest[:memory] if guest.has_key?(:memory)
+      end
+      box.vm.provider "vmware_workstation" do |v|
+        v.vmx["numvcpus"] = guest[:cpus]   if guest.has_key?(:cpus)
+        v.gui             = guest[:gui]    if guest.has_key?(:gui)
+        v.vmx["memsize"]  = guest[:memory] if guest.has_key?(:memory)
+      end
+
+      # :sync Sync'd folder
+      unless guest.has_key?(:sync)
+        box.vm.synced_folder '.', '/vagrant', disabled: true
+      else
+        box.vm.synced_folder '.', '/vagrant', disabled: ! guest[:sync]
+      end
+
+      # :update Update OS
+      if guest.has_key?(:update) && guest[:update]
+        box.vm.provision 'shell',
+          inline: <<-'SCRIPT'
+            if command -v apt-get > /dev/null; then
+              export DEBIAN_FRONTEND=noninteractive
+              apt-get update  --quiet=2
+              apt-get upgrade --quiet=2 --option=Dpkg::Use-Pty=0 --assume-yes
+            fi
+            if command -v yum > /dev/null; then
+              yum upgrade --quiet --assumeyes
+            fi
+          SCRIPT
+      end
+
+      # :user Set ssh user
+      if guest.has_key?(:user)
+        VAGRANT_COMMAND = ARGV[0]
+        if VAGRANT_COMMAND == "ssh"
+          config.ssh.username = guest[:user]
+        end
+      end
+
+      ## PROVISIONERS
+
+      # Ansible
+      if guest.has_key?(:ansible)
+        if guest[:ansible].is_a? Array
+          guest[:ansible].each do |playbook|
+            box.vm.provision "ansible" do |ansible|
+              ansible.playbook = playbook
+            end
+          end
+        else
+          box.vm.provision "ansible" do |ansible|
+            ansible.playbook = guest[:ansible]
+          end
+        end
+      end
+
+      # File
+      if guest.has_key?(:file)
+        if guest[:file].is_a? Array
+          guest[:file].each do |file|
+            box.vm.provision "file", source: file, destination: file
+          end
+        else
+          box.vm.provision "file", source: guest[:file], destination: guest[:file]
+        end
+      end
+
+      # Inline Shell
+      if guest.has_key?(:inline)
+        if guest[:inline].is_a? Array
+          guest[:inline].each do |command|
+            box.vm.provision "shell" do |shell|
+              shell.inline = command
+              shell.name = command.split.first
+            end
+          end
+        else
+          box.vm.provision "shell" do |shell|
+            shell.inline = guest[:inline]
+            shell.name = guest[:inline].split.first
+          end
+        end
+      end
+
+      # Shell
+      if guest.has_key?(:shell)
+        if guest[:shell].is_a? Array
+          guest[:shell].each do |script|
+            box.vm.provision "shell" do |shell|
+              shell.path = script
+              shell.name = File.basename(script)
+            end
+          end
+        else
+          box.vm.provision "shell" do |shell|
+            shell.path = guest[:shell]
+            shell.name = File.basename(guest[:shell])
+          end
+        end
+      end
+
+    end # config.vm.define
+  end # GUESTS.each_with_index
+end # Vagrant.configure
