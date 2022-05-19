@@ -35,6 +35,7 @@
       register: helm_repo_out
       changed_when:
         - helm_repo_out.stdout is not search('skipping')
+
     - name: Update helm repositories
       command:
         cmd: helm repo update
@@ -42,10 +43,10 @@
     - name: Install cert-manager
       command:
         cmd: >
-          helm install 
-          cert-manager jetstack/cert-manager 
-          --namespace cert-manager 
-          --create-namespace 
+          helm install
+          cert-manager jetstack/cert-manager
+          --namespace cert-manager
+          --create-namespace
           --version {{ cert_manager_version }}
           --set installCRDs=true
       environment:
@@ -64,7 +65,7 @@
           --namespace cattle-system
           --set hostname={{ rancher_hostname }}
           --set bootstrapPassword={{ rancher_admin_password }}
-          -- version {{ rancher_version }}
+          --version {{ rancher_version }}
       environment:
         KUBECONFIG: '/etc/rancher/k3s/k3s.yaml'
       register: rancher_install_out

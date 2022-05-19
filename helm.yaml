@@ -3,9 +3,13 @@
   hosts: all
 
   tasks:
+  - name: Get helm installation script
+    get_url:
+      dest: /tmp/helm-install.sh
+      url: https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3
+
   - name: Install helm from helper script
-    shell:
+    command:
       cmd: >
-        curl https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3
-        | bash
+        bash /tmp/helm-install.sh
       creates: /usr/local/bin/helm

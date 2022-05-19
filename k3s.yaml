@@ -4,11 +4,15 @@
   hosts: all
 
   tasks:
+  - name: Get k3s installer script
+    get_url:
+      url: https://get.k3s.io
+      dest: /tmp/k3s-install.sh
+
   - name: Install k3s via helper script
-    shell:
+    command:
       cmd: >
-        curl -sfL https://get.k3s.io
-        | sh -s -
+        sh /tmp/k3s-install.sh
         server
         --datastore-endpoint="mysql://root:@tcp(localhost:3306)/k3s"
       creates: /usr/local/bin/k3s-uninstall.sh
