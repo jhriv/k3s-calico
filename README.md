@@ -4,8 +4,8 @@ Proof-of-concept for replacing Traefik with Calico under k3s
 
 ## Prerequisites
 
-Ansible. Tested with 2.10.15, should work with 2.9.x
-make. apt-get, yum, dnf, brew install it.
+* Ansible. Tested with 2.10.15, should work with 2.9.x
+* make. apt-get, yum, dnf, brew install it.
 
 ## Steps
 
